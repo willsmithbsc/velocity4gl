@@ -41,6 +41,90 @@ const vscode = __importStar(require("vscode"));
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
+    // Autocomplete provider for dbname and tablename in .4gl files
+    context.subscriptions.push(vscode.languages.registerCompletionItemProvider('4gl', {
+        async provideCompletionItems(document, position) {
+            const lineText = document.lineAt(position.line).text;
+            const beforeCursor = lineText.substring(0, position.character);
+            // Stepwise autocomplete
+            // use dbName ...
+            // Always show all dbnames after 'use ' (even if user hasn't typed a prefix)
+            if (/^use\s*$/i.test(beforeCursor) || /^use\s+$/i.test(beforeCursor)) {
+                const dbNames = globalThis._velocity4gl_dbnames || [];
+                return dbNames.map((db) => {
+                    const item = new vscode.CompletionItem(db, vscode.CompletionItemKind.Variable);
+                    item.filterText = db; // ensure all are shown
+                    item.sortText = db;
+                    return item;
+                });
+            }
+            // Always suggest 'table' after any db name (even if cursor is after db name or after space)
+            if (/^use\s+\S+/.test(beforeCursor) && !/^use\s+\S+\s+table/.test(beforeCursor)) {
+                return [new vscode.CompletionItem('table', vscode.CompletionItemKind.Keyword)];
+            }
+            // use dbName table tableName ...
+            // Always show all tables for the selected db after 'use dbName table ' (with or without trailing space)
+            if (/^use\s+\S+\s+table\s*$/.test(beforeCursor) || /^use\s+\S+\s+table\s+$/.test(beforeCursor)) {
+                const dbNameMatch = /^use\s+(\S+)\s+table\s*$/.exec(beforeCursor) || /^use\s+(\S+)\s+table\s+$/.exec(beforeCursor);
+                const dbName = dbNameMatch ? dbNameMatch[1] : '';
+                const tableNames = (globalThis._velocity4gl_tables && globalThis._velocity4gl_tables[dbName]) || [];
+                return tableNames.map((tbl) => {
+                    const item = new vscode.CompletionItem(tbl, vscode.CompletionItemKind.Variable);
+                    item.filterText = tbl;
+                    item.sortText = tbl;
+                    return item;
+                });
+            }
+            // use dbName table tableName as ...
+            if (/^use\s+\S+\s+table\s+\S+\s*$/i.test(beforeCursor)) {
+                return [new vscode.CompletionItem('as', vscode.CompletionItemKind.Keyword)];
+            }
+            // After 'as', allow free text for pseudo name
+            return undefined;
+        }
+    }, ' '));
+    // Command: Fill Table Fields below 'use from dbname table tablename as pseudo'
+    // Automatically insert fields after completing the use line
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(async (event) => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || event.document !== editor.document) {
+            return;
+        }
+        const position = editor.selection.active;
+        const lineText = event.document.lineAt(position.line).text.trim();
+        // Only trigger if the line matches the new use statement format
+        const useRegex = /^use\s+(\S+)\s+table\s+(\S+)(?:\s+as\s+(\S+))?/i;
+        const match = useRegex.exec(lineText);
+        if (!match) {
+            return;
+        }
+        const dbName = match[1];
+        const tableName = match[2];
+        // const pseudoName = match[3]; // optional alias
+        // Get cached fields for the table
+        try {
+            const dbUtils = await import('./dbUtils.js');
+            const fields = await dbUtils.getCachedFields(tableName);
+            if (!fields || fields.length === 0) {
+                return;
+            }
+            // Check if fields already inserted below
+            const nextLine = position.line + 1 < event.document.lineCount ? event.document.lineAt(position.line + 1).text.trim() : '';
+            if (nextLine && fields.some(f => nextLine.includes(f))) {
+                return;
+            }
+            // Prepare field lines
+            const fieldLines = fields.map(f => `    ${f}`);
+            const insertPosition = new vscode.Position(position.line + 1, 0);
+            await editor.edit(editBuilder => {
+                editBuilder.insert(insertPosition, fieldLines.join('\n') + '\n');
+            });
+            vscode.window.showInformationMessage(`Fields for table '${tableName}' inserted.`);
+        }
+        catch (err) {
+            // Silent fail
+        }
+    }));
     // Use the console to output diagnostic information (console.log) and errors (console.error)
     // This line of code will only be executed once when your extension is activated
     console.log('Congratulations, your extension "4gl-file-creator" is now active!');
@@ -113,6 +197,16 @@ function activate(context) {
                 vscode.window.showInformationMessage(testResult);
                 if (testResult.startsWith('Connection successful')) {
                     const tables = await dbUtils.getMySQLTables(db.config);
+                    // Store dbnames and tables for autocomplete
+                    let dbnames = globalThis._velocity4gl_dbnames || [];
+                    if (!dbnames.includes(db.alias)) {
+                        dbnames.push(db.alias);
+                    }
+                    globalThis._velocity4gl_dbnames = dbnames;
+                    let tablesMap = globalThis._velocity4gl_tables || {};
+                    tablesMap[db.alias] = tables;
+                    globalThis._velocity4gl_tables = tablesMap;
+                    // Optionally prompt for table and cache fields (existing logic)
                     const table = await vscode.window.showQuickPick(tables, { placeHolder: 'Select a table to view fields' });
                     if (table) {
                         const fields = await dbUtils.getTableFields(db.config, table);
@@ -165,7 +259,7 @@ function activate(context) {
         }
     });
     context.subscriptions.push(create4glFileDisposable);
-    const defaultAppCode = `database repository
+    const defaultAppCode = `// My Application Repository
     connect database memdb sqlite::memory: as memory_db
 
     connect database rad_4gl_system as 4gl_db
@@ -176,15 +270,8 @@ function activate(context) {
         password=""
         charset=utf8mb4
 
-database repository end
+// Talbe use here
 
-tables repository
-    table name from 4gl_db as pseudo_table 
-        column1
-        column2
-        column3
-    use
-tables repository end
 
 variable repository
     const variable_name.string = "string"
