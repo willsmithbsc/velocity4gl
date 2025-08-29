@@ -1,0 +1,64 @@
+{
+  "name": "4gl-file-creator",
+  "displayName": "4GL File Creator",
+  "description": "VS Code extension to create new .4gl files for the 4GL language.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "4gl-file-creator.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "4gl-file-creator.createNew4glFile",
+        "title": "Create New 4GL File"
+      },
+      {
+        "command": "4gl-file-creator.createApp",
+        "title": "Create 4GL App"
+      }
+    ],
+    "languages": [
+      {
+        "id": "4gl",
+        "aliases": ["4GL", "4gl"],
+        "extensions": [".4gl"],
+        "mimetypes": ["text/4gl"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "4gl",
+        "scopeName": "source.4gl",
+        "path": "./syntaxes/4gl.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.103.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@typescript-eslint/eslint-plugin": "^8.39.0",
+    "@typescript-eslint/parser": "^8.39.0",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}

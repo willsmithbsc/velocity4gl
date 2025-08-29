@@ -1,0 +1,43 @@
+{
+	"name": "4GL",
+	"patterns": [
+		{"include": "#comments"},
+		{"include": "#header"},
+		{"include": "#databaseKeywords"},
+		{"include": "#tableKeywords"},
+		{"include": "#variableKeywords"},
+		{"include": "#programKeywords"},
+		{"include": "#strings"},
+		{"include": "#numbers"}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [{"name": "comment.line.double-slash.4gl", "match": "//.*"}]
+		},
+		"header": {
+			"patterns": [{"name": "keyword.control.header.4gl", "match": "\\b(database|tables|variable|program|repository|end)\\b"}]
+		},
+		"databaseKeywords": {
+			"patterns": [{"name": "support.function.database.4gl", "match": "\\b(connect|as|type|host|port|username|password|memdb|charset|sqlite)\\b"}]
+		},
+		"tableKeywords": {
+			"patterns": [{"name": "support.function.table.4gl", "match": "\\b(table|use|from|create|column)\\b"}]
+		},
+		"variableKeywords": {
+			"patterns": [{"name": "support.function.variable.4gl", "match": "\\b(const|default|float|integer|string|execute)\\b"}]
+		},
+		"programKeywords": {
+			"patterns": [{"name": "support.function.program.4gl", "match": "\\b(\\.4gl)\\b"}]
+		},
+		"strings": {
+			"name": "string.quoted.double.4gl",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [{"name": "constant.character.escape.4gl", "match": "\\\\."}]
+		},
+		"numbers": {
+			"patterns": [{"name": "constant.numeric.4gl", "match": "\\b\\d+(\\.\\d+)?\\b"}]
+		}
+	},
+	"scopeName": "source.4gl"
+}
