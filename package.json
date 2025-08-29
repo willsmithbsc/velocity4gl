@@ -24,14 +24,25 @@
       {
         "command": "4gl-file-creator.createApp",
         "title": "Create 4GL App"
+      },
+      {
+        "command": "4gl-file-creator.connectDatabase",
+        "title": "Connect Database"
       }
     ],
     "languages": [
       {
         "id": "4gl",
-        "aliases": ["4GL", "4gl"],
-        "extensions": [".4gl"],
-        "mimetypes": ["text/4gl"]
+        "aliases": [
+          "4GL",
+          "4gl"
+        ],
+        "extensions": [
+          ".4gl"
+        ],
+        "mimetypes": [
+          "text/4gl"
+        ]
       }
     ],
     "grammars": [
@@ -51,14 +62,19 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.103.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/sql.js": "^1.4.9",
+    "@types/vscode": "^1.103.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
-    "eslint": "^9.32.0",
-    "typescript": "^5.9.2",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "mysql2": "^3.14.3",
+    "sql.js": "^1.13.0"
   }
 }
