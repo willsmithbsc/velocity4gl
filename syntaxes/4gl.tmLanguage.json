@@ -2,7 +2,7 @@
 	"name": "4GL",
 	"patterns": [
 	{"name": "keyword.control.field.4gl", "match": "\\bfield\\b"},
-	{"name": "keyword.control.command.4gl", "match": "\\b(connect|database|as|use|table|field|const|default|execute)\\b"},
+	{"name": "keyword.control.command.4gl", "match": "\\b(connect|database|as|use|table|field|const|default|execute|system|system end|data|data end|tables|tables end|defaults|defaults end|constants|constants end|programs|programs end)\\b"},
 	{"include": "#comments"},
 	{"include": "#header"},
 	{"include": "#databaseKeywords"},
@@ -20,7 +20,7 @@
 			]
 		},
 		"header": {
-			"patterns": [{"name": "keyword.control.header.4gl", "match": "\\b(database|tables|variable|program|repository|end)\\b"}]
+			"patterns": [{"name": "keyword.control.header.4gl", "match": "\\b(system|system end|data|data end|tables|tables end|defaults|defaults end|constants|constants end|programs|programs end|database|tables|variable|program|repository|end)\\b"}]
 		},
 		"databaseKeywords": {
 			"patterns": [{"name": "support.function.database.4gl", "match": "\\b(connect|as|type|host|port|username|password|charset|sqlite)\\b"}]

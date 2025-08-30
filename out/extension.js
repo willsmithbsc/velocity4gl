@@ -460,6 +460,51 @@ programs end`;
         }
     });
     context.subscriptions.push(createAppDisposable);
+    // Command: Create new .4gl file from current use line (table or pseudo name)
+    const createProgramFromUseDisposable = vscode.commands.registerCommand('4gl-file-creator.createProgramFromUse', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('No file is open in the editor.');
+            return;
+        }
+        const position = editor.selection.active;
+        const lineText = editor.document.lineAt(position.line).text.trim();
+        // Match use line: use dbName table tableName [as pseudo]
+        const useRegex = /^use\s+(\S+)\s+table\s+(\S+)(?:\s+as\s+(\S+))?/i;
+        const match = useRegex.exec(lineText);
+        if (!match) {
+            vscode.window.showErrorMessage('Cursor is not on a valid use line.');
+            return;
+        }
+        const tableName = match[2];
+        const pseudoName = match[3];
+        const defaultName = pseudoName || tableName;
+        const filename = await vscode.window.showInputBox({
+            placeHolder: `Enter new 4GL program filename (default: ${defaultName})`,
+            prompt: 'Filename for new .4gl file',
+            value: defaultName
+        });
+        if (!filename) {
+            return;
+        }
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders || folders.length === 0) {
+            vscode.window.showErrorMessage('No workspace folder open.');
+            return;
+        }
+        const folderUri = folders[0].uri;
+        const fileUri = vscode.Uri.joinPath(folderUri, filename + '.4gl');
+        try {
+            await vscode.workspace.fs.writeFile(fileUri, new Uint8Array());
+            const doc = await vscode.workspace.openTextDocument(fileUri);
+            await vscode.window.showTextDocument(doc);
+            vscode.window.showInformationMessage(`Created file: ${filename}.4gl`);
+        }
+        catch (err) {
+            vscode.window.showErrorMessage('Failed to create file: ' + err);
+        }
+    });
+    context.subscriptions.push(createProgramFromUseDisposable);
 }
 // This method is called when your extension is deactivated
 function deactivate() { }

@@ -28,8 +28,32 @@
       {
         "command": "4gl-file-creator.connectDatabase",
         "title": "Connect Database"
+      },
+      {
+        "command": "4gl-file-creator.createProgramFromUse",
+        "title": "Create Program from Use Line"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "4gl-file-creator.createProgramFromUse",
+          "when": "editorLangId == 4gl",
+          "group": "navigation@2"
+        },
+        {
+          "command": "4gl-file-creator.connectDatabase",
+          "when": "editorLangId == 4gl",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "4gl-file-creator.createProgramFromUse",
+          "when": "editorLangId == 4gl"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "4gl",
