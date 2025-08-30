@@ -165,7 +165,7 @@ function activate(context) {
             vscode.window.showInformationMessage(`Fields for table '${tableName}' inserted.`);
         }
         catch (err) {
-            vscode.window.showErrorMessage(`[4GL DEBUG] Error looking up fields for dbName='${dbName}', tableName='${tableName}': ${err}`);
+            //vscode.window.showErrorMessage(`[4GL DEBUG] Error looking up fields for dbName='${dbName}', tableName='${tableName}': ${err}`);
         }
     }));
     // Use the console to output diagnostic information (console.log) and errors (console.error)
@@ -242,13 +242,13 @@ function activate(context) {
                     let tables = [];
                     // Use getMySQLTables for MySQL, and getTableFields for SQLite (table list must be provided for SQLite)
                     if (db.type === 'mysql') {
-                        console.log(`[4GL DEBUG] Calling getMySQLTables for database '${db.alias}' with config:`, db.config);
-                        vscode.window.showInformationMessage(`[4GL DEBUG] Calling getMySQLTables for database '${db.alias}'`);
+                        //console.log(`[4GL DEBUG] Calling getMySQLTables for database '${db.alias}' with config:`, db.config);
+                        //vscode.window.showInformationMessage(`[4GL DEBUG] Calling getMySQLTables for database '${db.alias}'`);
                         tables = await dbUtils.getMySQLTables(db.config);
-                        console.log(`[4GL DEBUG] Raw tables returned for database '${db.alias}':`, tables);
-                        vscode.window.showInformationMessage(`[4GL DEBUG] Raw tables returned for database '${db.alias}': ${tables.join(', ')}`);
-                        console.log(`[4GL DEBUG] Tables found for database '${db.alias}':`, tables);
-                        vscode.window.showInformationMessage(`[4GL DEBUG] Tables found for database '${db.alias}': ${tables.join(', ')}`);
+                        //console.log(`[4GL DEBUG] Raw tables returned for database '${db.alias}':`, tables);
+                        //vscode.window.showInformationMessage(`[4GL DEBUG] Raw tables returned for database '${db.alias}': ${tables.join(', ')}`);
+                        //console.log(`[4GL DEBUG] Tables found for database '${db.alias}':`, tables);
+                        //vscode.window.showInformationMessage(`[4GL DEBUG] Tables found for database '${db.alias}': ${tables.join(', ')}`);
                     }
                     else if (db.type === 'sqlite') {
                         // For SQLite, try to get tables from getTableFields with a special call, or provide your own table list
@@ -311,6 +311,13 @@ function activate(context) {
     });
     context.subscriptions.push(create4glFileDisposable);
     const defaultAppCode = `// My Application Repository
+
+system
+    // System configuration, environment, entry points, etc.
+system end
+
+data
+    // Database connections and table definitions
     connect database memdb sqlite::memory: as memory_db
 
     connect database rad_4gl_system as 4gl_db
@@ -321,17 +328,40 @@ function activate(context) {
         password=""
         charset=utf8mb4
 
-// Table use here  use 4gl_db table program	as test
+data end
 
-//*
-variable repository
-    const variable_name.string = "string"
-    const variable_name.integer = 100
-    default vat.float(3.2) = 3.5
-    default vat.float(3.2) = 3.6 execute 31:12:2025@00:01
-variable repository end
 
-program repository
+tables
+	// Table use here  use 4gl_db table program	as test
+	use 4gl_db table program_catalog as cat
+
+	use 4gl_db table programs
+
+	use 4gl_db table users
+
+tables end
+
+defaults
+    // System-wide defaults (currency, tax rates, formats, etc.)
+	default currency.string = "USD"
+	default tax_rate.float = 0.07
+	default date_format.string = "YYYY-MM-DD"
+	default time_format.string = "HH:mm:ss"
+	default timezone.string = "America/New_York"
+	default vat_rate.float = 0.17
+	default vat_rate.float = 0.20 execute 01:01:2026@00:00
+defaults end
+
+constants
+    // Developer-defined constants
+	const MAX_USERS.int = 1000
+	const APP_NAME.string = "My4GLApp"
+	const SUPPORT_EMAIL.string = "support@example.com"
+	const PI.float = 3.14159
+constants end
+
+programs
+    // Entry point and list of programs to compile/run
     // my first program
     first_program_name.4gl
 
@@ -340,8 +370,8 @@ program repository
 
     // my third program
     third_program_name.4gl
-program repository end
-*/`;
+
+programs end`;
     const createAppDisposable = vscode.commands.registerCommand('4gl-file-creator.createApp', async () => {
         const filename = await vscode.window.showInputBox({
             placeHolder: 'Enter new 4GL app filename (without extension)',

@@ -2,6 +2,7 @@
 	"name": "4GL",
 	"patterns": [
 	{"name": "keyword.control.field.4gl", "match": "\\bfield\\b"},
+	{"name": "keyword.control.command.4gl", "match": "\\b(connect|database|as|use|table|field|const|default|execute)\\b"},
 	{"include": "#comments"},
 	{"include": "#header"},
 	{"include": "#databaseKeywords"},
@@ -13,19 +14,22 @@
 	],
 	"repository": {
 		"comments": {
-			"patterns": [{"name": "comment.line.double-slash.4gl", "match": "//.*"}]
+			"patterns": [
+				{"name": "comment.line.double-slash.4gl", "match": "//.*"},
+					{"name": "comment.block.4gl", "begin": "/\\*", "end": "\\*/"}
+			]
 		},
 		"header": {
 			"patterns": [{"name": "keyword.control.header.4gl", "match": "\\b(database|tables|variable|program|repository|end)\\b"}]
 		},
 		"databaseKeywords": {
-			"patterns": [{"name": "support.function.database.4gl", "match": "\\b(connect|as|type|host|port|username|password|memdb|charset|sqlite)\\b"}]
+			"patterns": [{"name": "support.function.database.4gl", "match": "\\b(connect|as|type|host|port|username|password|charset|sqlite)\\b"}]
 		},
 		"tableKeywords": {
-			"patterns": [{"name": "support.function.table.4gl", "match": "\\b(table|use|from|create|column)\\b"}]
+			"patterns": [{"name": "support.function.table.4gl", "match": "\\b(table|use|from|create)\\b"}]
 		},
 		"variableKeywords": {
-			"patterns": [{"name": "support.function.variable.4gl", "match": "\\b(const|default|float|integer|string|execute)\\b"}]
+			"patterns": [{"name": "support.function.variable.4gl", "match": "\\b(const|default|float|int|string|execute)\\b"}]
 		},
 		"programKeywords": {
 			"patterns": [{"name": "support.function.program.4gl", "match": "\\b(\\.4gl)\\b"}]
