@@ -67,8 +67,13 @@ function activate(context) {
             if (/^use\s+\S+\s+table\s*$/.test(beforeCursor) || /^use\s+\S+\s+table\s+$/.test(beforeCursor)) {
                 const dbNameMatch = /^use\s+(\S+)\s+table\s*$/.exec(beforeCursor) || /^use\s+(\S+)\s+table\s+$/.exec(beforeCursor);
                 const dbName = dbNameMatch ? dbNameMatch[1] : '';
-                const tableNames = (globalThis._velocity4gl_tables && globalThis._velocity4gl_tables[dbName]) || [];
-                return tableNames.map((tbl) => {
+                // Only use the live cache, never fallback
+                const tablesMap = globalThis._velocity4gl_tables && globalThis._velocity4gl_tables[dbName] ? globalThis._velocity4gl_tables[dbName] : {};
+                const liveTableNames = Object.keys(tablesMap).filter(tbl => Array.isArray(tablesMap[tbl]) && tablesMap[tbl].length > 0);
+                if (liveTableNames.length === 0) {
+                    return [];
+                }
+                return liveTableNames.map((tbl) => {
                     const item = new vscode.CompletionItem(tbl, vscode.CompletionItemKind.Variable);
                     item.filterText = tbl;
                     item.sortText = tbl;
@@ -86,43 +91,81 @@ function activate(context) {
     // Command: Fill Table Fields below 'use from dbname table tablename as pseudo'
     // Automatically insert fields after completing the use line
     context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(async (event) => {
+        // Only proceed if a new line was added (Enter key)
+        if (!event.contentChanges || event.contentChanges.length === 0) {
+            return;
+        }
+        const change = event.contentChanges[0];
+        // Check if the change is a newline insertion
+        if (!change.text.includes('\n')) {
+            return;
+        }
         const editor = vscode.window.activeTextEditor;
         if (!editor || event.document !== editor.document) {
             return;
         }
-        const position = editor.selection.active;
-        const lineText = event.document.lineAt(position.line).text.trim();
-        // Only trigger if the line matches the new use statement format
+        // Get the line before the new line
+        const lineNum = change.range.start.line;
+        if (lineNum < 0) {
+            return;
+        }
+        const prevLineText = event.document.lineAt(lineNum).text.trim();
         const useRegex = /^use\s+(\S+)\s+table\s+(\S+)(?:\s+as\s+(\S+))?/i;
-        const match = useRegex.exec(lineText);
+        const match = useRegex.exec(prevLineText);
         if (!match) {
             return;
         }
         const dbName = match[1];
         const tableName = match[2];
-        // const pseudoName = match[3]; // optional alias
-        // Get cached fields for the table
         try {
             const dbUtils = await import('./dbUtils.js');
-            const fields = await dbUtils.getCachedFields(tableName);
+            // Lookup fields using both dbName and tableName
+            // Lookup fields using global cache for dbName and tableName
+            const tablesMap = globalThis._velocity4gl_tables || {};
+            let fields = (tablesMap[dbName] && tablesMap[dbName][tableName]) ? tablesMap[dbName][tableName] : await dbUtils.getCachedFields(tableName);
+            // Only insert fields if they are real (not empty, not generated)
             if (!fields || fields.length === 0) {
+                vscode.window.showInformationMessage(`No fields found for dbName='${dbName}', tableName='${tableName}'`);
                 return;
             }
             // Check if fields already inserted below
-            const nextLine = position.line + 1 < event.document.lineCount ? event.document.lineAt(position.line + 1).text.trim() : '';
-            if (nextLine && fields.some(f => nextLine.includes(f))) {
+            const nextLineNum = lineNum + 1;
+            const nextLine = nextLineNum < event.document.lineCount ? event.document.lineAt(nextLineNum).text.trim() : '';
+            // If fields are objects, check by name
+            if (nextLine && fields.some((f) => nextLine.includes(f.name || f))) {
                 return;
             }
-            // Prepare field lines
-            const fieldLines = fields.map(f => `    ${f}`);
-            const insertPosition = new vscode.Position(position.line + 1, 0);
+            // Prepare field lines with attributes
+            const fieldLines = fields.map((f) => {
+                if (typeof f === 'object' && f.name) {
+                    let attrParts = [];
+                    if (f.type) {
+                        attrParts.push(`type=${f.type}`);
+                    }
+                    if (f.key) {
+                        attrParts.push(`key=${f.key}`);
+                    }
+                    if (f.sorted) {
+                        attrParts.push(`sorted=${f.sorted}`);
+                    }
+                    if (f.ranges) {
+                        attrParts.push(`ranges=${Array.isArray(f.ranges) ? f.ranges.join('|') : f.ranges}`);
+                    }
+                    // Highlight 'field' using Markdown bold
+                    return `    **field** ${f.name} ${attrParts.join(' ')}`;
+                }
+                else {
+                    return `    **field** ${f}`;
+                }
+            });
+            const insertPosition = new vscode.Position(nextLineNum, 0);
             await editor.edit(editBuilder => {
                 editBuilder.insert(insertPosition, fieldLines.join('\n') + '\n');
             });
             vscode.window.showInformationMessage(`Fields for table '${tableName}' inserted.`);
         }
         catch (err) {
-            // Silent fail
+            vscode.window.showErrorMessage(`[4GL DEBUG] Error looking up fields for dbName='${dbName}', tableName='${tableName}': ${err}`);
         }
     }));
     // Use the console to output diagnostic information (console.log) and errors (console.error)
@@ -180,48 +223,56 @@ function activate(context) {
             vscode.window.showErrorMessage('No database definitions found in the open file.');
             return;
         }
-        // Let user pick a database to test
-        const pick = await vscode.window.showQuickPick(dbs.map(d => `${d.alias} (${d.type})`), { placeHolder: 'Select a database to test connection' });
-        if (!pick) {
-            return;
-        }
-        const db = dbs.find(d => `${d.alias} (${d.type})` === pick);
-        if (!db) {
-            return;
-        }
-        // Test connection
-        try {
-            if (db.type === 'mysql') {
-                const dbUtils = await import('./dbUtils.js');
-                const testResult = await dbUtils.testMySQLConnection(db.config);
-                vscode.window.showInformationMessage(testResult);
-                if (testResult.startsWith('Connection successful')) {
-                    const tables = await dbUtils.getMySQLTables(db.config);
-                    // Store dbnames and tables for autocomplete
-                    let dbnames = globalThis._velocity4gl_dbnames || [];
+        // Connect to all databases found
+        const dbUtils = await import('./dbUtils.js');
+        let dbnames = globalThis._velocity4gl_dbnames || [];
+        let tablesMap = globalThis._velocity4gl_tables || {};
+        for (const db of dbs) {
+            try {
+                let testResult = '';
+                if (db.type === 'mysql') {
+                    testResult = await dbUtils.testMySQLConnection(db.config);
+                }
+                else if (db.type === 'sqlite') {
+                    testResult = 'SQLite connection (in-memory or file) ready.';
+                }
+                vscode.window.showInformationMessage(`Database '${db.alias}': ${testResult}`);
+                if (testResult.startsWith('Connection successful') || db.type === 'sqlite') {
+                    // Get tables for this database
+                    let tables = [];
+                    // Use getMySQLTables for MySQL, and getTableFields for SQLite (table list must be provided for SQLite)
+                    if (db.type === 'mysql') {
+                        console.log(`[4GL DEBUG] Calling getMySQLTables for database '${db.alias}' with config:`, db.config);
+                        vscode.window.showInformationMessage(`[4GL DEBUG] Calling getMySQLTables for database '${db.alias}'`);
+                        tables = await dbUtils.getMySQLTables(db.config);
+                        console.log(`[4GL DEBUG] Raw tables returned for database '${db.alias}':`, tables);
+                        vscode.window.showInformationMessage(`[4GL DEBUG] Raw tables returned for database '${db.alias}': ${tables.join(', ')}`);
+                        console.log(`[4GL DEBUG] Tables found for database '${db.alias}':`, tables);
+                        vscode.window.showInformationMessage(`[4GL DEBUG] Tables found for database '${db.alias}': ${tables.join(', ')}`);
+                    }
+                    else if (db.type === 'sqlite') {
+                        // For SQLite, try to get tables from getTableFields with a special call, or provide your own table list
+                        // Here, we assume you have a way to get SQLite table names, otherwise leave as []
+                        tables = [];
+                    }
+                    tablesMap[db.alias] = tablesMap[db.alias] || {};
                     if (!dbnames.includes(db.alias)) {
                         dbnames.push(db.alias);
                     }
-                    globalThis._velocity4gl_dbnames = dbnames;
-                    let tablesMap = globalThis._velocity4gl_tables || {};
-                    tablesMap[db.alias] = tables;
-                    globalThis._velocity4gl_tables = tablesMap;
-                    // Optionally prompt for table and cache fields (existing logic)
-                    const table = await vscode.window.showQuickPick(tables, { placeHolder: 'Select a table to view fields' });
-                    if (table) {
-                        const fields = await dbUtils.getTableFields(db.config, table);
-                        dbUtils.cacheTableFields(table, fields);
-                        vscode.window.showInformationMessage(`Fields in ${table}: ${fields.join(', ')}`);
+                    // Cache fields for all tables
+                    for (const table of tables) {
+                        let fields = await dbUtils.getTableFields(db.config, table);
+                        tablesMap[db.alias][table] = fields;
+                        dbUtils.cacheTableFields(table, fields); // keep legacy cache for fallback
                     }
                 }
             }
-            else if (db.type === 'sqlite') {
-                vscode.window.showInformationMessage('SQLite connection (in-memory or file) ready.');
+            catch (err) {
+                vscode.window.showErrorMessage(`Database '${db.alias}' connection failed: ${err.message}`);
             }
         }
-        catch (err) {
-            vscode.window.showErrorMessage('Database connection failed: ' + err.message);
-        }
+        globalThis._velocity4gl_dbnames = dbnames;
+        globalThis._velocity4gl_tables = tablesMap;
     });
     context.subscriptions.push(connectDbDisposable);
     // The command has been defined in the package.json file
@@ -270,9 +321,9 @@ function activate(context) {
         password=""
         charset=utf8mb4
 
-// Talbe use here
+// Table use here  use 4gl_db table program	as test
 
-
+//*
 variable repository
     const variable_name.string = "string"
     const variable_name.integer = 100
@@ -290,7 +341,7 @@ program repository
     // my third program
     third_program_name.4gl
 program repository end
-`;
+*/`;
     const createAppDisposable = vscode.commands.registerCommand('4gl-file-creator.createApp', async () => {
         const filename = await vscode.window.showInputBox({
             placeHolder: 'Enter new 4GL app filename (without extension)',

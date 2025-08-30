@@ -40,7 +40,15 @@ async function getTableFields(config, table) {
     const connection = await promise_1.default.createConnection(config);
     const [rows] = await connection.query(`DESCRIBE \`${table}\``);
     await connection.end();
-    return rows.map((r) => r.Field);
+    // Return detailed field objects for enhanced output
+    return rows.map((r) => ({
+        name: r.Field,
+        type: r.Type,
+        null: r.Null,
+        key: r.Key,
+        default: r.Default,
+        extra: r.Extra
+    }));
 }
 let sqliteDb = null;
 async function getSqliteDb() {

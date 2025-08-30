@@ -35,11 +35,19 @@ export async function getMySQLTables(config: MySQLConfig): Promise<string[]> {
     return tables;
 }
 
-export async function getTableFields(config: MySQLConfig, table: string): Promise<string[]> {
+export async function getTableFields(config: MySQLConfig, table: string): Promise<any[]> {
     const connection = await mysql.createConnection(config);
-        const [rows] = await connection.query(`DESCRIBE \`${table}\``);
+    const [rows] = await connection.query(`DESCRIBE \`${table}\``);
     await connection.end();
-        return (rows as any[]).map((r: any) => r.Field);
+    // Return detailed field objects for enhanced output
+    return (rows as any[]).map((r: any) => ({
+        name: r.Field,
+        type: r.Type,
+        null: r.Null,
+        key: r.Key,
+        default: r.Default,
+        extra: r.Extra
+    }));
 }
 
 

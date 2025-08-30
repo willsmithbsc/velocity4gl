@@ -1,14 +1,15 @@
 {
 	"name": "4GL",
 	"patterns": [
-		{"include": "#comments"},
-		{"include": "#header"},
-		{"include": "#databaseKeywords"},
-		{"include": "#tableKeywords"},
-		{"include": "#variableKeywords"},
-		{"include": "#programKeywords"},
-		{"include": "#strings"},
-		{"include": "#numbers"}
+	{"name": "keyword.control.field.4gl", "match": "\\bfield\\b"},
+	{"include": "#comments"},
+	{"include": "#header"},
+	{"include": "#databaseKeywords"},
+	{"include": "#tableKeywords"},
+	{"include": "#variableKeywords"},
+	{"include": "#programKeywords"},
+	{"include": "#strings"},
+	{"include": "#numbers"}
 	],
 	"repository": {
 		"comments": {
