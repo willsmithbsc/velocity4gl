@@ -151,11 +151,10 @@ function activate(context) {
                     if (f.ranges) {
                         attrParts.push(`ranges=${Array.isArray(f.ranges) ? f.ranges.join('|') : f.ranges}`);
                     }
-                    // Highlight 'field' using Markdown bold
-                    return `    **field** ${f.name} ${attrParts.join(' ')}`;
+                    return `    field ${f.name} ${attrParts.join(' ')}`;
                 }
                 else {
-                    return `    **field** ${f}`;
+                    return `    field ${f}`;
                 }
             });
             const insertPosition = new vscode.Position(nextLineNum, 0);
@@ -180,17 +179,56 @@ function activate(context) {
         }
         const text = editor.document.getText();
         // Parse database definitions from the open file
-        // Example: connect database rad_4gl_system as 4gl_db\n    type=mysql\n    host=localhost\n    ...
-        const dbRegex = /connect database\s+(\S+)\s+as\s+(\S+)([\s\S]*?)(?=connect database|database repository end|$)/g;
+        // Support both long-form and shorthand connection strings
+        // Long-form: connect database rad_4gl_system as 4gl_db\n    type=mysql\n    host=localhost\n    ...
+        // Shorthand: connect database rad_4gl_system mysql:host=localhost;dbname=rad_4gl_system;charset=utf8mb4;user=root as short_db
+        const dbRegex = /connect database\s+(\S+)(?:\s+(mysql:[^\s]+))?\s+as\s+(\S+)([\s\S]*?)(?=connect database|database repository end|$)/g;
         const dbs = [];
         let match;
         while ((match = dbRegex.exec(text)) !== null) {
             const name = match[1];
-            const alias = match[2];
-            const block = match[3];
+            const shorthand = match[2];
+            const alias = match[3];
+            const block = match[4];
             const config = {};
             let type = 'mysql';
-            // Parse config lines
+            if (shorthand && shorthand.startsWith('mysql:')) {
+                // Parse shorthand connection string
+                type = 'mysql';
+                const parts = shorthand.replace('mysql:', '').split(';');
+                for (const part of parts) {
+                    const [key, value] = part.split('=');
+                    if (!key || !value) {
+                        continue;
+                    }
+                    const k = key.trim();
+                    const v = value.trim();
+                    if (k === 'host') {
+                        config.host = v;
+                    }
+                    if (k === 'dbname') {
+                        config.database = v;
+                    }
+                    if (k === 'charset') {
+                        config.charset = v;
+                    }
+                    if (k === 'user') {
+                        config.user = v;
+                    }
+                    if (k === 'password') {
+                        config.password = v;
+                    }
+                    if (k === 'port') {
+                        config.port = Number(v);
+                    }
+                }
+            }
+            // Detect sqlite memory database in shorthand or long-form
+            if ((shorthand && shorthand.includes('sqlite::memory:')) || block.includes('sqlite::memory:')) {
+                type = 'sqlite';
+                config.filename = ':memory:';
+            }
+            // Parse config lines (long-form)
             const lines = block.split(/\r?\n/).map(l => l.trim()).filter(l => l);
             for (const line of lines) {
                 if (line.startsWith('type=')) {
@@ -215,8 +253,13 @@ function activate(context) {
                     type = 'sqlite';
                     config.filename = ':memory:';
                 }
+                if (line.startsWith('database=')) {
+                    config.database = line.split('=')[1].trim();
+                }
             }
-            config.database = name;
+            if (!config.database) {
+                config.database = name;
+            }
             dbs.push({ name, alias, config, type });
         }
         if (dbs.length === 0) {
@@ -237,6 +280,10 @@ function activate(context) {
                     testResult = 'SQLite connection (in-memory or file) ready.';
                 }
                 vscode.window.showInformationMessage(`Database '${db.alias}': ${testResult}`);
+                // Always show a message for sqlite, even if no tables
+                if (db.type === 'sqlite' && !testResult) {
+                    vscode.window.showInformationMessage(`Database '${db.alias}': SQLite connection (in-memory or file) ready.`);
+                }
                 if (testResult.startsWith('Connection successful') || db.type === 'sqlite') {
                     // Get tables for this database
                     let tables = [];
@@ -314,12 +361,27 @@ function activate(context) {
 
 system
     // System configuration, environment, entry points, etc.
+    set appName = "My4GLApp"
+    set appVersion = "1.0.0"
+    set appAuthor = "Your Name"
+    set appLicense = "MIT"
+    set appDescription = "A simple 4GL application"
+    set appLocation = "/path/to/your/app"
+    set appHomepage = "https://example.com/my4glapp"
+    set appRepository = "https://github.com/username/my4glapp"
+    set programEntryPoint = "first_program_name.4gl"
+    set login = false
+    set system = single // options: single, saas, legacy
+    set viewer = "browser" // options: browser, mobilie, desktop, terminal
+
 system end
 
 data
     // Database connections and table definitions
     connect database memdb sqlite::memory: as memory_db
 
+	connect database rad_4gl_system mysql:host=localhost;dbname=rad_4gl_system;charset=utf8mb4;user=root as short_db
+	 
     connect database rad_4gl_system as 4gl_db
         type=mysql
         host=localhost
